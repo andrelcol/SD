@@ -1,187 +1,4 @@
-globals [
-  token-holders  ;; lista de filósofos que atualmente possuem tokens
-  num-forks      ;; número de garfos no sistema
-]
 
-breed [philosophers philosopher]
-philosophers-own [
-  state                   ;; meu estado atual: "HUNGRY", "EATING", ou "THINKING"
-  left-fork right-fork    ;; os garfos à minha esquerda e direita
-  total-eaten             ;; quanto já comi
-  hold-time               ;; quantos ticks o filósofo manteve os recursos
-]
-
-breed [forks fork]
-forks-own [
-  home-xpos home-ypos home-heading     ;; posição original na mesa
-  owner                                ;; o filósofo que atualmente me possui (se houver)
-]
-
-to setup
-  clear-all
-  ;; Definimos o número de garfos como igual ao número de filósofos
-  set num-forks num-philosophers
-  make-turtles
-  ;; Calcula o número de tokens com base nos garfos
-  let num-tokens floor (num-forks / 2)
-  ;; Inicializa a lista de token-holders
-  set token-holders []
-  ;; Atribui tokens aos filósofos não adjacentes
-  repeat num-tokens [
-    let token-philosopher philosopher ((length token-holders * 2) mod num-philosophers)
-    set token-holders lput token-philosopher token-holders
-  ]
-  recolor
-  reset-ticks
-end
-
-to make-turtles
-  set-default-shape philosophers "person torso"
-  set-default-shape forks "fork"
-  create-ordered-philosophers num-philosophers [
-    set size 0.1
-    jump 0.35
-    set state "THINKING"
-    set total-eaten 0
-    set hold-time 0
-  ]
-  create-ordered-forks num-forks [
-    rt 180 / num-forks
-    jump 0.25
-    rt 180
-    set size 0.08
-    set owner nobody
-    ;; salva minha posição e orientação, para que os filósofos possam me reposicionar depois
-    set home-xpos xcor
-    set home-ypos ycor
-    set home-heading heading
-  ]
-  ask philosophers [
-    set left-fork fork (who + num-forks)
-    ifelse who = 0
-      [ set right-fork fork (2 * num-forks - 1) ]
-      [ set right-fork fork (who + num-forks - 1) ]
-  ]
-end
-
-to go
-  ;; Primeiro, todos os filósofos que estão pensando podem ficar com fome
-  ask philosophers with [state = "THINKING"] [
-    if random-float 1.0 < hungry-chance [
-      set state "HUNGRY"
-    ]
-  ]
-  ;; Em seguida, todos os filósofos com tokens executam sua ação
-  ask (turtle-set token-holders) [ update ]
-  recolor
-  tick
-end
-
-to update  ;; procedimento do filósofo
-  if state = "HUNGRY" [
-    ;; tenta pegar os garfos
-    acquire-forks
-    set state "EATING"
-    set hold-time 0  ;; inicia o contador de tempo de posse dos recursos
-    stop
-  ]
-  if state = "EATING" [
-    set hold-time hold-time + 1
-    if hold-time >= max-hold-time [
-      ;; Tempo máximo excedido; libera os garfos e volta ao estado "HUNGRY"
-      release-forks
-      set state "HUNGRY"
-      pass-token
-      stop
-    ]
-    set total-eaten total-eaten + 1
-    if random-float 1.0 < full-chance [
-      ;; coloca os garfos na mesa
-      release-forks
-      set state "THINKING"
-      pass-token    ;; Passamos o token após terminar de comer
-      stop
-    ]
-    stop
-  ]
-  if state = "THINKING" [
-    pass-token
-    stop
-  ]
-  pass-token
-end
-
-to pass-token  ;; procedimento do filósofo
-  set token-holders remove self token-holders
-  let next-phil find-next-available-philosopher
-  if next-phil != nobody [
-    set token-holders lput next-phil token-holders
-  ]
-end
-
-
-
-to acquire-forks  ;; procedimento do filósofo
-  acquire-left
-  acquire-right
-end
-
-to release-forks  ;; procedimento do filósofo
-  release left-fork
-  release right-fork
-end
-
-to acquire-left  ;; procedimento do filósofo
-  ask left-fork [
-    set owner myself
-    move-to owner
-    set heading [heading] of owner
-    rt 8
-    fd 0.1
-  ]
-end
-
-to acquire-right  ;; procedimento do filósofo
-  ask right-fork [
-    set owner myself
-    move-to owner
-    set heading [heading] of owner
-    lt 8
-    fd 0.1
-  ]
-end
-
-to release [the-fork]  ;; procedimento do filósofo
-  ask the-fork [
-    if owner != nobody [
-      set owner nobody
-      setxy home-xpos home-ypos
-      set heading home-heading
-    ]
-  ]
-end
-
-to recolor
-  ask philosophers [
-    ifelse member? self token-holders [
-      set size 0.5        ;; aumenta o tamanho para indicar o portador do token
-    ] [
-      set size 0.1
-    ]
-    ifelse state = "THINKING" [
-      set color blue
-    ] [
-      ifelse state = "HUNGRY" [
-        set color red
-      ] [
-        set color green
-      ]
-    ]
-  ]
-  ask forks [
-    set color white
-  ]
-end
 @#$#@#$#@
 GRAPHICS-WINDOW
 354
@@ -354,6 +171,21 @@ max-hold-time
 1
 10
 3.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+193
+113
+365
+146
+num-tokens
+num-tokens
+1
+40
+10.0
 1
 1
 NIL

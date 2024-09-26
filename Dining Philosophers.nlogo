@@ -22,14 +22,20 @@ to setup
   ;; Definimos o número de garfos como igual ao número de filósofos
   set num-forks num-philosophers
   make-turtles
-  ;; Calcula o número de tokens com base nos garfos
-  let num-tokens floor (num-forks / 2)
+  ;; Garantir que num-tokens não exceda o número de filósofos
+  if num-tokens > num-philosophers [
+    set num-tokens num-philosophers
+  ]
   ;; Inicializa a lista de token-holders
   set token-holders []
-  ;; Atribui tokens aos filósofos não adjacentes
+  ;; Atribui tokens aos filósofos
+  let step floor (num-philosophers / num-tokens)
+  if step = 0 [ set step 1 ]  ;; Garantir que o passo seja pelo menos 1
+  let current-index 0
   repeat num-tokens [
-    let token-philosopher philosopher ((length token-holders * 2) mod num-philosophers)
+    let token-philosopher philosopher current-index
     set token-holders lput token-philosopher token-holders
+    set current-index (current-index + step) mod num-philosophers
   ]
   recolor
   reset-ticks
@@ -51,7 +57,7 @@ to make-turtles
     rt 180
     set size 0.08
     set owner nobody
-    ;; salva minha posição e orientação, para que os filósofos possam me reposicionar depois
+    ;; salva minha posição e orientação, para que os garfos possam me reposicionar depois
     set home-xpos xcor
     set home-ypos ycor
     set home-heading heading
@@ -139,7 +145,6 @@ to-report find-next-available-philosopher  ;; procedimento do filósofo
   ]
 end
 
-
 to acquire-forks  ;; procedimento do filósofo
   acquire-left
   acquire-right
@@ -183,7 +188,7 @@ end
 to recolor
   ask philosophers [
     ifelse member? self token-holders [
-      set size 0.5        ;; aumenta o tamanho para indicar o portador do token
+      set size 0.15        ;; aumenta o tamanho para indicar o portador do token
     ] [
       set size 0.1
     ]
@@ -373,6 +378,21 @@ max-hold-time
 1
 10
 3.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+193
+113
+365
+146
+num-tokens
+num-tokens
+1
+40
+10.0
 1
 1
 NIL
