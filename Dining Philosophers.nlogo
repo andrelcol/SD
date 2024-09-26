@@ -1,5 +1,6 @@
 globals [
-  token-holder  ;; o filósofo que atualmente possui o token
+  token-holders  ;; lista de filósofos que atualmente possuem tokens
+  num-forks      ;; número de garfos no sistema
 ]
 
 breed [philosophers philosopher]
@@ -18,14 +19,22 @@ forks-own [
 
 to setup
   clear-all
-  ;; configurar o modelo
+  ;; Definimos o número de garfos como igual ao número de filósofos
+  set num-forks num-philosophers
   make-turtles
+  ;; Calcula o número de tokens com base nos garfos
+  let num-tokens floor (num-forks / 2)
+  ;; Inicializa a lista de token-holders
+  set token-holders []
+  ;; Atribui tokens aos filósofos não adjacentes
+  repeat num-tokens [
+    let token-philosopher philosopher ((length token-holders * 2) mod num-philosophers)
+    set token-holders lput token-philosopher token-holders
+  ]
   recolor
-  set token-holder philosopher 0       ;; Inicia o token com o filósofo 0
   reset-ticks
 end
 
-;; criar todas as tartarugas, posicioná-las e associar os garfos aos filósofos
 to make-turtles
   set-default-shape philosophers "person torso"
   set-default-shape forks "fork"
@@ -36,8 +45,8 @@ to make-turtles
     set total-eaten 0
     set hold-time 0
   ]
-  create-ordered-forks num-philosophers [
-    rt 180 / num-philosophers
+  create-ordered-forks num-forks [
+    rt 180 / num-forks
     jump 0.25
     rt 180
     set size 0.08
@@ -48,10 +57,10 @@ to make-turtles
     set home-heading heading
   ]
   ask philosophers [
-    set left-fork fork (who + num-philosophers)
+    set left-fork fork (who + num-forks)
     ifelse who = 0
-      [ set right-fork fork (2 * num-philosophers - 1) ]
-      [ set right-fork fork (who + num-philosophers - 1) ]
+      [ set right-fork fork (2 * num-forks - 1) ]
+      [ set right-fork fork (who + num-forks - 1) ]
   ]
 end
 
@@ -62,51 +71,75 @@ to go
       set state "HUNGRY"
     ]
   ]
-  ;; Em seguida, o filósofo com o token executa sua ação
-  ask token-holder [ update ]
+  ;; Em seguida, todos os filósofos com tokens executam sua ação
+  ask (turtle-set token-holders) [ update ]
   recolor
   tick
 end
 
-;; aqui é onde os filósofos realmente agem
 to update  ;; procedimento do filósofo
   if state = "HUNGRY" [
     ;; tenta pegar os garfos
     acquire-forks
     set state "EATING"
     set hold-time 0  ;; inicia o contador de tempo de posse dos recursos
-    ;; Não passamos o token aqui; o filósofo mantém o token enquanto come
     stop
   ]
   if state = "EATING" [
-    ;; Incrementa o tempo que o filósofo está com os garfos
     set hold-time hold-time + 1
-    ;; Verifica se excedeu o tempo máximo de posse dos recursos
     if hold-time >= max-hold-time [
       ;; Tempo máximo excedido; libera os garfos e volta ao estado "HUNGRY"
       release-forks
       set state "HUNGRY"
-      pass-token    ;; Passa o token para o próximo filósofo
+      pass-token
       stop
     ]
-    ;; mantém o controle de quanto estamos comendo
     set total-eaten total-eaten + 1
     if random-float 1.0 < full-chance [
       ;; coloca os garfos na mesa
       release-forks
-      ;; volta a pensar
       set state "THINKING"
-      pass-token    ;; Passamos o token somente após terminar de comer
+      pass-token    ;; Passamos o token após terminar de comer
       stop
     ]
-    ;; Não passamos o token enquanto ainda estamos comendo
     stop
   ]
-  ;; Se o filósofo não estiver com fome nem comendo, passa o token
+  if state = "THINKING" [
+    pass-token
+    stop
+  ]
   pass-token
 end
 
-;; procedimentos simplificados de aquisição e liberação de garfos
+to pass-token  ;; procedimento do filósofo
+  set token-holders remove self token-holders
+  let next-phil find-next-available-philosopher
+  if next-phil != nobody [
+    set token-holders lput next-phil token-holders
+  ]
+end
+
+to-report find-next-available-philosopher  ;; procedimento do filósofo
+  let my-who who
+  let candidates philosophers with [who != my-who and state != "EATING" and not member? self token-holders]
+  ifelse any? candidates [
+    ;; Encontrar o próximo filósofo no anel que atende aos critérios
+    let index my-who
+    let next-index (index + 1) mod num-philosophers
+    while [not member? philosopher next-index candidates] [
+      set next-index (next-index + 1) mod num-philosophers
+      if next-index = index [  ;; voltou ao ponto inicial, nenhum candidato disponível
+        report nobody
+      ]
+    ]
+    report philosopher next-index
+  ] [
+    ;; Se não houver candidatos, retorna nobody
+    report nobody
+  ]
+end
+
+
 to acquire-forks  ;; procedimento do filósofo
   acquire-left
   acquire-right
@@ -117,7 +150,6 @@ to release-forks  ;; procedimento do filósofo
   release right-fork
 end
 
-;; pega o garfo esquerdo
 to acquire-left  ;; procedimento do filósofo
   ask left-fork [
     set owner myself
@@ -128,7 +160,6 @@ to acquire-left  ;; procedimento do filósofo
   ]
 end
 
-;; pega o garfo direito
 to acquire-right  ;; procedimento do filósofo
   ask right-fork [
     set owner myself
@@ -139,7 +170,6 @@ to acquire-right  ;; procedimento do filósofo
   ]
 end
 
-;; libera um garfo
 to release [the-fork]  ;; procedimento do filósofo
   ask the-fork [
     if owner != nobody [
@@ -150,20 +180,9 @@ to release [the-fork]  ;; procedimento do filósofo
   ]
 end
 
-;; passa o token para o próximo filósofo
-to pass-token  ;; procedimento do filósofo
-  set token-holder next-philosopher
-end
-
-;; determina o próximo filósofo no anel
-to-report next-philosopher  ;; procedimento do filósofo
-  report philosopher ((who + 1) mod num-philosophers)
-end
-
-;; todos recebem uma nova cor e ajustamos o tamanho para indicar quem possui o token
 to recolor
   ask philosophers [
-    ifelse self = token-holder [
+    ifelse member? self token-holders [
       set size 0.5        ;; aumenta o tamanho para indicar o portador do token
     ] [
       set size 0.1
@@ -283,7 +302,7 @@ full-chance
 full-chance
 0.0
 1.0
-0.0
+0.28
 0.01
 1
 NIL
@@ -326,17 +345,6 @@ PENS
 "Thinking" 1.0 0 -13345367 true "" "plot count philosophers with [state = \"THINKING\"]"
 "Hungry" 1.0 0 -2674135 true "" "plot count philosophers with [state = \"HUNGRY\"]"
 "Eating" 1.0 0 -10899396 true "" "plot count philosophers with [state = \"EATING\"]"
-
-SWITCH
-190
-105
-341
-138
-cooperation?
-cooperation?
-1
-1
--1000
 
 BUTTON
 160
